@@ -27,8 +27,8 @@ var port = process.env.PORT || 8080;        // set our port
 var router = express.Router();              // get an instance of the express Router
 
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
-router.get('/', function(req, res) {
-    rp('https://finance.yahoo.com/quote/msft/financials?ltr=1')
+router.get('/:symbolId', function(req, res) {
+    rp('https://finance.yahoo.com/quote/' + req.params.symbolId +'/financials?ltr=1')
     .then((htmlString) => {
 		let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
 		let test = extractor.$.html();
@@ -43,6 +43,8 @@ router.get('/', function(req, res) {
        console.error(err);
     });   
 });
+
+
 
 // more routes for our API will happen here
 
