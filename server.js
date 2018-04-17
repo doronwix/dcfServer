@@ -37,7 +37,7 @@ router.get('/', function(req, res) {
 		let json = JSON.parse(stringToConvert.replace(/[\u0019]/g, ''));   
 		let quatData = json.context.dispatcher.stores.QuoteSummaryStore.incomeStatementHistoryQuarterly;
 		let yearlyData = json.context.dispatcher.stores.QuoteSummaryStore.incomeStatementHistory;
-		res.send([quatData,yearlyData]);
+	res.send({quatData,yearlyData});
     })
     .catch((err) => {
        console.error(err);
