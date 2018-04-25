@@ -35,14 +35,43 @@ router.get('/:period/:symbolId', function(req, res) {
 		let mtch = test.match('\{"context".*\:\{.*\:.*\}\}');
 		let stringToConvert = mtch[0].toString();
 		let json = JSON.parse(stringToConvert.replace(/[\u0019]/g, '')); 
-		let data = {};
+		let data = json.context.dispatcher.stores.QuoteSummaryStore;
+	    let filteredData = {};
+
 		if (req.params.period === 'q') {
-			 data = json.context.dispatcher.stores.QuoteSummaryStore.incomeStatementHistoryQuarterly;
+			filteredData['balanceSheetHistory'] = data['balanceSheetHistoryQuarterly'].balanceSheetStatements;
+			filteredData['cashflowStatementHistory'] = data['cashflowStatementHistoryQuarterly'].cashflowStatements;
+			filteredData['incomeStatementHistory'] = data['incomeStatementHistoryQuarterly'].incomeStatementHistory;
 		}
-		else{
-			 data = json.context.dispatcher.stores.QuoteSummaryStore.incomeStatementHistory;
+		else{	
+			filteredData['balanceSheetHistory'] = data['balanceSheetHistory'].balanceSheetStatements;
+			filteredData['cashflowStatementHistory'] = data['cashflowStatementHistory'].cashflowStatements;
+			filteredData['incomeStatementHistory'] = data['incomeStatementHistory'].incomeStatementHistory;	
 		}
-	res.send({data});
+		var balance = filteredData['balanceSheetHistory'].map(function(tdo,index,arr){
+			return transpose(tdo,index,arr);
+		});
+		var cashFlow = filteredData['cashflowStatementHistory'].map(function(tdo,index,arr){
+			return transpose(tdo,index,arr);
+		});
+		var incomeStatement = filteredData['incomeStatementHistory'].map(function(tdo,index,arr){
+			return transpose(tdo,index,arr);
+		});
+
+		res.send({balance,cashFlow,incomeStatement});
+
+		function transpose(tdo,index,arr){
+			let endDate = null;
+			for(let key in tdo){
+				if (key === "endDate"){
+					endDate = tdo[key].fmt;
+				}
+
+				tdo[key] =  tdo[key].raw;
+			}
+			return {endDate, tdo}
+		 }			
+
     })
     .catch((err) => {
        console.error(err);
