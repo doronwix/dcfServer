@@ -103,7 +103,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 
 		var regExpMap = new WeakMap();
 
-		let regex2010 = {index:'07'};
+		let regex2010 = {index:'16'};
 
 		regExpMap.set(regex2010,/([0][\d]+)-10-([\d]+)/);
 		// regExpMap.set({index:'08'},/([0][\d]+)-08-([\d]+)/);
@@ -131,6 +131,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 			let html = extractor.$("#main-content").html();
 			var regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
 			tenKurl =  	regex.exec(html);
+			
 		})
 		.then(rp('https://www.sec.gov' + tenKurl[0])
 		.then((htmlString) => {
@@ -138,12 +139,12 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 			res.send({parsed_10k});
 		}))
 		.catch((err) => {
-			res.send(err);
+			res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
 			console.error(err);
 		 });   
 	})
 	.catch((err) => {
-		res.send(err);
+		res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
 		console.error(err);
 	 });   	
 
