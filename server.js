@@ -1,3 +1,5 @@
+
+//https://radiant-wave-47361.herokuapp.com/
 const fs = require('fs');
 const HtmlExtractor = require('html-extract-js');
 const https = require('https');
@@ -80,7 +82,7 @@ router.get('/:period/:symbolId', function(req, res) {
     });   
 });
 
-router.get('/:year/:symbolId', function(req, res) {
+router.get('/sec/:year/:symbolId', function(req, res) {
 	let tenKurl = [], currentCik = [], accessNumber= '';
 	//rp('https://www.sec.gov/Archives/edgar/data/320193/000162828016020309/aapl-20160924.xml')
 	//https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=tmk&type=10-k&dateb=&owner=exclude&count=40
