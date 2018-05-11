@@ -124,7 +124,8 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 		accessNumber = regExpMap.get(regex2010).exec(extractedAcccess)[0].replace(/-/g,"");
 	})
 	.then(() => {
-		let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber
+		let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
+		console.log(url);
 		rp(url)
 		.then((htmlString) => {
 			let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
@@ -133,15 +134,21 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 			tenKurl =  	regex.exec(html);
 			
 		})
-		.then(rp('https://www.sec.gov' + tenKurl[0])
-		.then((htmlString) => {
-			let parsed_10k = parseXbrl.parseStr(htmlString);
-			res.send({parsed_10k});
-		}))
-		.catch((err) => {
-			res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
-			console.error(err);
-		 });   
+		.then(()=>{
+			let url = 'https://www.sec.gov' + tenKurl[0];
+			console.log(url);
+			rp(url)
+			.then((htmlString) => {
+				let parsed_10k = parseXbrl.parseStr(htmlString);
+				res.send({parsed_10k});
+		})
+			.catch((err) => {
+				res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
+				console.error(err);
+		 }); 
+
+		})
+  
 	})
 	.catch((err) => {
 		res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
