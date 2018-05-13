@@ -83,10 +83,7 @@ router.get('/:period/:symbolId', function(req, res) {
 });
 
 router.get('/sec/:year/:symbolId', function(req, res) {
-	let tenKurl = [], currentCik = [], accessNumber= '';
-	//rp('https://www.sec.gov/Archives/edgar/data/320193/000162828016020309/aapl-20160924.xml')
-	//https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=tmk&type=10-k&dateb=&owner=exclude&count=40
-	//https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=tmk&type=10-k&dateb=20140101&owner=exclude&count=10
+	let tenKurl = [], currentCik = [], accessNumber = null;
 	rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + req.params.symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
 	.then((htmlString) => {
 		let year =  req.params.year.toString().slice(2,4);
@@ -95,33 +92,9 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 		let regex= /[0]\d+/g
 		currentCik = parseFloat(regex.exec(extractedText)[0]);
 		let extractedAcccess = extractor.$(".tableFile2").html(); 
-		//([0][\d]+)-([\d]+)-([\d]+)
-		//let mtch = extractedAcccess.match(mtch);
-		//let mtch = extractedAcccess.match('([0][\d]+)-'+ year +'-([\d]+)');
-		//let accessNumber = mtch[0].toString().replace('-','');
-		//let mtch= new RegExp('/([0][\d]+)-'+ year +'-([\d]+)/g/')
+		accessNumberWrapper.set();
 
-		var regExpMap = new WeakMap();
-
-		let regex2010 = {index:'16'};
-
-		regExpMap.set(regex2010,/([0][\d]+)-10-([\d]+)/);
-		// regExpMap.set({index:'08'},/([0][\d]+)-08-([\d]+)/);
-		// regExpMap.set({index:'09'},/([0][\d]+)-09-([\d]+)/);
-		// regExpMap.set({index:'10'},/([0][\d]+)-10-([\d]+)/);
-		// regExpMap.set({index:'11'},/([0][\d]+)-11-([\d]+)/);
-		// regExpMap.set({index:'12'},/([0][\d]+)-12-([\d]+)/);
-		// regExpMap.set({index:'13'},/([0][\d]+)-13-([\d]+)/);
-		// regExpMap.set({index:'14'},/([0][\d]+)-14-([\d]+)/);
-		// regExpMap.set({index:'15'},/([0][\d]+)-15-([\d]+)/);
-		// regExpMap.set({index:'16'},/([0][\d]+)-16-([\d]+)/);
-		// regExpMap.set({index:'17'},/([0][\d]+)-17-([\d]+)/);
-		// regExpMap.set({index:'18'},/([0][\d]+)-18-([\d]+)/);
-		// regExpMap.set({index:'19'},/([0][\d]+)-19-([\d]+)/);
-		// regExpMap.set({index:'20'},/([0][\d]+)-20-([\d]+)/);
-		// regExpMap.set({index:'21'},/([0][\d]+)-21-([\d]+)/);
-		// regExpMap.set({index:'22'},'test');
-		accessNumber = regExpMap.get(regex2010).exec(extractedAcccess)[0].replace(/-/g,"");
+		accessNumber = accessNumberWrapper.get(year).exec(extractedAcccess)[0].replace(/-/g,"");
 	})
 	.then(() => {
 		let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
@@ -157,8 +130,26 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 
 });
 
-function getAccessNumber(){
-	
+var accessNumberWrapper = {
+	regExpMap: new Map(),
+	get(year){
+		return this.regExpMap.get(year);
+	},
+	set(){
+		this.regExpMap.set('09',/([0][\d]+)-09-([\d]+)/);
+		this.regExpMap.set('10',/([0][\d]+)-10-([\d]+)/);
+		this.regExpMap.set('11',/([0][\d]+)-11-([\d]+)/);
+		this.regExpMap.set('12',/([0][\d]+)-12-([\d]+)/);
+		this.regExpMap.set('13',/([0][\d]+)-13-([\d]+)/);
+		this.regExpMap.set('14',/([0][\d]+)-14-([\d]+)/);
+		this.regExpMap.set('15',/([0][\d]+)-15-([\d]+)/);
+		this.regExpMap.set('16',/([0][\d]+)-16-([\d]+)/);
+		this.regExpMap.set('17',/([0][\d]+)-17-([\d]+)/);
+		this.regExpMap.set('18',/([0][\d]+)-18-([\d]+)/);		
+		this.regExpMap.set('19',/([0][\d]+)-19-([\d]+)/);
+		this.regExpMap.set('20',/([0][\d]+)-20-([\d]+)/);
+	}	
+
 }
 
 
