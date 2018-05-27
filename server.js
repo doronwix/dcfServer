@@ -86,7 +86,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 	let tenKurl = [], currentCik = [], accessNumber = null;
 	rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + req.params.symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
 	.then((htmlString) => {
-		let year =  req.params.year.toString().slice(2,4);
+		let year =  parseFloat(req.params.year.toString().slice(2,4)) + 1;
 		let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
 		let extractedText = extractor.$(".companyName").text();
 		let regex= /[0]\d+/g
@@ -94,7 +94,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 		let extractedAcccess = extractor.$(".tableFile2").html(); 
 		accessNumberWrapper.set();
 
-		accessNumber = accessNumberWrapper.get(year).exec(extractedAcccess)[0].replace(/-/g,"");
+		accessNumber = accessNumberWrapper.get(year.toString()).exec(extractedAcccess)[0].replace(/-/g,"");
 	})
 	.then(() => {
 		let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;

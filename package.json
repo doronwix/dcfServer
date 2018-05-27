@@ -4,7 +4,6 @@
   "description": "extract dcf values from known API's",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
   "author": "",
@@ -13,7 +12,7 @@
     "body-parser": "^1.18.2",
     "express": "^4.16.3",
     "html-extract-js": "^0.1.9",
-    "parse-xbrl": "^1.1.5",
+    "parse-xbrl-10k": "https://github.com/doronwix/parse-xbrl-10k",
     "request": "^2.85.0",
     "request-promise": "^4.2.2"
   }
