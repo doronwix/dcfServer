@@ -5,7 +5,7 @@ const HtmlExtractor = require('html-extract-js');
 const https = require('https');
 const request = require('request');
 const rp = require('request-promise');
-const parseXbrl = require('parse-xbrl');
+const parseXbrl = require('parse-xbrl-10k');
 
 
  
