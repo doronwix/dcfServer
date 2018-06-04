@@ -91,7 +91,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 		let extractedText = extractor.$(".companyName").text();
 		let regex= /[0]\d+/g
 		currentCik = parseFloat(regex.exec(extractedText)[0]);
-		let extractedAcccess = extractor.$(".tableFile2").html(); 
+		let extractedAcccess = extractor.$("tr:contains('10-K'):not(:contains(10-K/A))");
 		accessNumberWrapper.set();
 
 		accessNumber = accessNumberWrapper.get(year.toString()).exec(extractedAcccess)[0].replace(/-/g,"");
