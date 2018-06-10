@@ -91,7 +91,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 	requested_year = req.params.year,
 	symbolId = req.params.symbolId;
 
-	var merged_result = [];
+	var merged_result = {};
 	
 	if (!requested_year){
 		res.send("please send year");
@@ -104,6 +104,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 	var start_year = requested_year - 10; // first year loop is 10 years before requested year
 	getDocument(start_year);
 	function getDocument(current_year){
+		
 		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
 			.then((htmlString) => {
 			let year =  parseFloat(current_year.toString().slice(2,4)) + 1;
@@ -152,7 +153,8 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 			rp(url)
 			.then((htmlString) => {
 				let parsed_10k = parseXbrl.parseStr(htmlString);
-				merged_result.push(parsed_10k);
+				
+				merged_result[current_year] = [parsed_10k]; //used in excel json parse to seperate rows
 				if (current_year<requested_year){
 					getDocument(current_year+1);
 				}
