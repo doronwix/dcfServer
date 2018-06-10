@@ -91,7 +91,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 	requested_year = req.params.year,
 	symbolId = req.params.symbolId;
 
-	var merged_result = {};
+	var merged_result = [];
 	
 	if (!requested_year){
 		res.send("please send year");
@@ -153,8 +153,9 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 			rp(url)
 			.then((htmlString) => {
 				let parsed_10k = parseXbrl.parseStr(htmlString);
-				
-				merged_result[current_year] = [parsed_10k]; //used in excel json parse to seperate rows
+				if(parsed_10k){
+					merged_result.push(parsed_10k); 
+				}
 				if (current_year<requested_year){
 					getDocument(current_year+1);
 				}
