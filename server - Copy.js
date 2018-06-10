@@ -81,111 +81,53 @@ router.get('/:period/:symbolId', function(req, res) {
        console.error(err);
     });   
 });
-router.get('/sec/:symbolId', function(req, res) {
-
-});
 
 router.get('/sec/:year/:symbolId', function(req, res) {
+	let tenKurl = [], currentCik = [], accessNumber = null;
+	rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + req.params.symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
+	.then((htmlString) => {
+		let year =  parseFloat(req.params.year.toString().slice(2,4)) + 1;
+		let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
+		let extractedText = extractor.$(".companyName").text();
+		let regex= /[0]\d+/g
+		currentCik = parseFloat(regex.exec(extractedText)[0]);
+		let extractedAcccess = extractor.$("tr:contains('10-K'):not(:contains(10-K/A))");
+		accessNumberWrapper.set();
 
-	var tenKurl = [], currentCik = [], accessNumber = null,
-	requested_year = req.params.year,
-	symbolId = req.params.symbolId;
-
-	var merged_result = {};
-	
-	if (!requested_year){
-		res.send("please send year");
-		return;
-	}
-	if (!symbolId){
-		res.send("please send symbol");
-		return;
-	}
-	var start_year = requested_year - 10; // first year loop is 10 years before requested year
-	getDocument(start_year);
-	function getDocument(current_year){
-		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
-			.then((htmlString) => {
-			let year =  parseFloat(current_year.toString().slice(2,4)) + 1;
-			year = year <10 ? "0" + year : year;
+		accessNumber = accessNumberWrapper.get(year.toString()).exec(extractedAcccess)[0].replace(/-/g,"");
+	})
+	.then(() => {
+		let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
+		console.log(url);
+		rp(url)
+		.then((htmlString) => {
 			let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
-			let extractedText = extractor.$(".companyName").text();
-			let regex= /[0]\d+/g
-			currentCik = parseFloat(regex.exec(extractedText)[0]);
-			let extractedAcccess = extractor.$("tr:contains('10-K'):not(:contains(10-K/A))");
-			accessNumberWrapper.set();
-
-			accessNumber = accessNumberWrapper.get(year.toString()).exec(extractedAcccess)[0].replace(/-/g,"");
-		})
-		.then(() => {
-			let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
-			console.log(url);
-			rp(url)
-			.then((htmlString) => {
-				let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
-				let html = extractor.$("#main-content").html();
-				var regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
-				tenKurl =  	regex.exec(html);
+			let html = extractor.$("#main-content").html();
+			var regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
+			tenKurl =  	regex.exec(html);
 			
-			})
-			.catch((err) => {
-				console.error(err);
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-		 	}) 
+		})
 		.then(()=>{
-			if (!tenKurl){
-				console.log("no document in this year");
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-			}
 			let url = 'https://www.sec.gov' + tenKurl[0];
 			console.log(url);
 			rp(url)
 			.then((htmlString) => {
 				let parsed_10k = parseXbrl.parseStr(htmlString);
-				merged_result[current_year] = parsed_10k
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-			})
+				res.send({parsed_10k});
+		})
 			.catch((err) => {
+				res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
 				console.error(err);
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-		 	}); 
+		 }); 
 
 		})
   
 	})
 	.catch((err) => {
-		//res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
+		res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
 		console.error(err);
-		if (current_year<requested_year){
-			getDocument(current_year+1);
-		}
-		else{
-			res.send({merged_result})
-		}
 	 });   	
-	 
-	}
-	
+
 });
 
 var accessNumberWrapper = {
@@ -194,11 +136,6 @@ var accessNumberWrapper = {
 		return this.regExpMap.get(year);
 	},
 	set(){
-		this.regExpMap.set('04',/([0][\d]+)-04-([\d]+)/);
-		this.regExpMap.set('05',/([0][\d]+)-05-([\d]+)/);
-		this.regExpMap.set('06',/([0][\d]+)-06-([\d]+)/);
-		this.regExpMap.set('07',/([0][\d]+)-07-([\d]+)/);
-		this.regExpMap.set('08',/([0][\d]+)-08-([\d]+)/);
 		this.regExpMap.set('09',/([0][\d]+)-09-([\d]+)/);
 		this.regExpMap.set('10',/([0][\d]+)-10-([\d]+)/);
 		this.regExpMap.set('11',/([0][\d]+)-11-([\d]+)/);
