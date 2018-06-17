@@ -85,41 +85,26 @@ router.get('/sec/:symbolId', function(req, res) {
 
 });
 
-router.get('/sec/:year/:symbolId', function(req, res) {
+router.get('/sec/:type/:symbolId', function(req, res) {
 
-	requested_year = req.params.year,
-	symbolId = req.params.symbolId;
+	let type = req.params.type,
+	let symbolId = req.params.symbolId;
 
 	var merged_result = [];
 	
-	if (!requested_year){
-		res.send("please send year");
-		return;
-	}
 	if (!symbolId){
 		res.send("please send symbol");
 		return;
 	}
-	var year = requested_year - 10; // first year loop is 10 years before requested year
-	var promise_arr = [], i=0;
-	//while (year < requested_year){
-
-/* 		promise1 = new Promise(function(resolve,reject){
-			getDocument(2015, resolve,reject)
-		})
-		promise2 = new Promise(function(resolve,reject){
-			getDocument(2014, resolve,reject)
-		}) */
-		
-		//year++;
-	//}
-	while (year < requested_year){
+	var i = 0;
+	var promise_arr = [];
+	while (i < 10){
 
 		promise_arr.push(new Promise(function(resolve,reject){
-			getDocument(year, resolve,reject)
+			getDocument(year, symbolId, resolve,reject)
 		}))
 		
-		year++; 
+		i++; 
 	}
 	Promise.all(promise_arr).then(function(values) {
 		for(let value of values){
@@ -130,7 +115,7 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 		res.send({merged_result})
 	  });
 	
-	function getDocument(current_year, resolve, reject){
+	function getDocument(current_year, symbolId,  resolve, reject){
 		
 		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
 			.then((htmlString) => {
@@ -173,7 +158,6 @@ router.get('/sec/:year/:symbolId', function(req, res) {
   
 	})
 	.catch((err) => {
-		//res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
 		console.error(err + " year:" + current_year);
 		resolve({})
 	 });   	
