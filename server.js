@@ -87,7 +87,6 @@ router.get('/sec/:symbolId', function(req, res) {
 
 router.get('/sec/:year/:symbolId', function(req, res) {
 
-	var tenKurl = [], currentCik = [], accessNumber = null,
 	requested_year = req.params.year,
 	symbolId = req.params.symbolId;
 
@@ -101,90 +100,82 @@ router.get('/sec/:year/:symbolId', function(req, res) {
 		res.send("please send symbol");
 		return;
 	}
-	var start_year = requested_year - 10; // first year loop is 10 years before requested year
-	getDocument(start_year);
-	function getDocument(current_year){
+	var year = requested_year - 10; // first year loop is 10 years before requested year
+	var promise_arr = [], i=0;
+	//while (year < requested_year){
+
+/* 		promise1 = new Promise(function(resolve,reject){
+			getDocument(2015, resolve,reject)
+		})
+		promise2 = new Promise(function(resolve,reject){
+			getDocument(2014, resolve,reject)
+		}) */
+		
+		//year++;
+	//}
+	while (year < requested_year){
+
+		promise_arr.push(new Promise(function(resolve,reject){
+			getDocument(year, resolve,reject)
+		}))
+		
+		year++; 
+	}
+	Promise.all(promise_arr).then(function(values) {
+		for(let value of values){
+			if ((value) && (Object.keys(value).length !== 0)){
+				merged_result.push(value);
+			}
+		}		
+		res.send({merged_result})
+	  });
+	
+	function getDocument(current_year, resolve, reject){
 		
 		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + '&Find=Search&owner=exclude&action=getcompany&type=10-k&owner=exclude&count=20')
 			.then((htmlString) => {
-			let year =  parseFloat(current_year.toString().slice(2,4)) + 1;
-			year = year <10 ? "0" + year : year;
-			let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
-			let extractedText = extractor.$(".companyName").text();
-			let regex= /[0]\d+/g
-			currentCik = parseFloat(regex.exec(extractedText)[0]);
-			let extractedAcccess = extractor.$("tr:contains('10-K'):not(:contains(10-K/A))");
-			accessNumberWrapper.set();
-
-			accessNumber = accessNumberWrapper.get(year.toString()).exec(extractedAcccess)[0].replace(/-/g,"");
-		})
-		.then(() => {
-			let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
-			console.log(url);
-			rp(url)
-			.then((htmlString) => {
+				let year =  parseFloat(current_year.toString().slice(2,4)) + 1;
+				year = year <10 ? "0" + year : year;
 				let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
-				let html = extractor.$("#main-content").html();
-				var regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
-				tenKurl =  	regex.exec(html);
-			
-			})
-			.catch((err) => {
-				console.error(err);
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-		 	}) 
-		.then(()=>{
-			if (!tenKurl){
-				console.log("no document in this year");
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-			}
-			let url = 'https://www.sec.gov' + tenKurl[0];
-			console.log(url);
-			rp(url)
-			.then((htmlString) => {
-				let parsed_10k = parseXbrl.parseStr(htmlString);
-				if(parsed_10k){
-					merged_result.push(parsed_10k); 
-				}
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-			})
-			.catch((err) => {
-				console.error(err);
-				if (current_year<requested_year){
-					getDocument(current_year+1);
-				}
-				else{
-					res.send({merged_result})
-				}
-		 	}); 
+				let extractedText = extractor.$(".companyName").text();
+				let regex= /[0]\d+/g
+				let currentCik = parseFloat(regex.exec(extractedText)[0]);
+				let extractedAcccess = extractor.$("tr:contains('10-K'):not(:contains(10-K/A))");
+				accessNumberWrapper.set();
+				let accessNumber = accessNumberWrapper.get(year.toString()).exec(extractedAcccess)[0].replace(/-/g,"");
 
-		})
+				let url = 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
+				console.log(url);
+				rp(url).then((htmlString) => {
+						let extractor = HtmlExtractor.load(htmlString, {charset: 'UTF-8'});
+						let html = extractor.$("#main-content").html();
+						let regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
+						let tenKurl =  	regex.exec(html);
+						if (!tenKurl){
+							console.log("no document in this year:" + current_year);
+							resolve({});
+						}
+						let url = 'https://www.sec.gov' + tenKurl[0];
+						console.log(url);
+						rp(url).then((htmlString) => {
+							let parsed_10k = parseXbrl.parseStr(htmlString);
+							if(parsed_10k){
+								resolve(parsed_10k); 
+							}
+				
+					}).catch((err) => {
+						console.error(err + " year:" + current_year);
+						resolve({})
+					});
+ 
+
+				})
   
 	})
 	.catch((err) => {
 		//res.send('url: https://www.sec.gov' + tenKurl[0] + 'error:' + err);
-		console.error(err);
-		if (current_year<requested_year){
-			getDocument(current_year+1);
-		}
-		else{
-			res.send({merged_result})
-		}
+		console.error(err + " year:" + current_year);
+		resolve({})
 	 });   	
 	 
 	}
