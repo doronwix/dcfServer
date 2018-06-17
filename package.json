@@ -1,6 +1,9 @@
 {
   "name": "dcfserver",
   "version": "1.0.0",
+  "engines": {
+    "node": "8.9.4"
+  },
   "description": "extract dcf values from known API's",
   "main": "server.js",
   "scripts": {
