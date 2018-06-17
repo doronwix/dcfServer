@@ -88,7 +88,7 @@ router.get('/sec/:symbolId', function(req, res) {
 router.get('/sec/:type/:symbolId', function(req, res) {
 
 	let type = req.params.type,
-	let symbolId = req.params.symbolId;
+    symbolId = req.params.symbolId;
 
 	var merged_result = [];
 	
