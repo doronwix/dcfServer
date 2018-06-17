@@ -96,15 +96,17 @@ router.get('/sec/:type/:symbolId', function(req, res) {
 		res.send("please send symbol");
 		return;
 	}
-	var i = 0;
-	var promise_arr = [];
-	while (i < 10){
+	let min_year = 2008, max_year = 2018,
+	promise_arr = [], now = new Date(), year;
+	year = now.getFullYear();
+	
+	while (year > min_year && year <= max_year){
 
 		promise_arr.push(new Promise(function(resolve,reject){
 			getDocument(year, symbolId, resolve,reject)
 		}))
 		
-		i++; 
+		year--;
 	}
 	Promise.all(promise_arr).then(function(values) {
 		for(let value of values){
