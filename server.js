@@ -81,7 +81,7 @@ router.get('/:period/:symbolId', function(req, res) {
        console.error(err);
     });   
 });
-router.get('/sec/:symbolId', function(req, res) {
+router.get('/sec/year/:year/:symbolId', function(req, res) {
 
 });
 
