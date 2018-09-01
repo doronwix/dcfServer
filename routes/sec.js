@@ -37,7 +37,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 		}))
 		
 		currentYear--;
-	}
+	} 
 	promise_arr.push(new Promise(function(resolve,reject){
 		get_document(max_year, symbolId, '10-Q', resolve,reject);
 	}))
@@ -66,7 +66,10 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	} 
 	
 	function get_document(year, symbolId,  type, resolve, reject){
-		let search_params = '&Find=Search&owner=exclude&action=getcompany&type=' + type + '&owner=exclude&count=20';
+		let search_params = '&Find=Search&owner=exclude&action=getcompany&type=' + type + '&owner=exclude&count=10';
+		if (type === '10-Q'){
+			search_params = search_params + 'dateb=' + year + '1231' + 'datea=' + year + '0101'
+		}
 		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + search_params)
 		.then((htmlString) => build_url(htmlString, year, type))
 		.then((url) => rp(url))

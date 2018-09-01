@@ -49,7 +49,7 @@ console.log('Magic happens on port ' + port);
 
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
 
-router.get('/sec/year/:year/:symbolId', function(req, res) {
+router.get('/sec/:year/:symbolId', function(req, res) {
 
 });
 
