@@ -3,6 +3,7 @@ const router = express.Router();
 const rp = require('request-promise');
 const htmlExtractor = require('html-extract-js');
 const parseXbrl = require('parse-xbrl-10k');
+const config = {log:false};
 
 router.get('/:maxYear/:symbolId', function(req, res) {
 
@@ -79,11 +80,11 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 				let regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
 				let tenKurl =  	regex.exec(html);
 				if (!tenKurl){
-					console.log("no document in this year:" + year);
+					log("no document in this year:" + year);
 					resolve({});
 				}
 				let url = 'https://www.sec.gov' + tenKurl[0];
-				console.log(url);
+				log(url);
 				return url;
 			})
 		.then((url) => rp(url))
@@ -94,7 +95,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 				}
 		
 		}).catch((err) => {
-			console.error(err + " year:" + year);
+			log(err + " year:" + year);
 			resolve({})
 		});   	
 	 
@@ -102,6 +103,12 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	
 });
 
+function log(msg){
+	if (config.log){
+		console.log(msg);
+	}
+	
+}
 
 var accessNumberWrapper = {
 	regExpMap: new Map(),
