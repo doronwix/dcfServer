@@ -29,19 +29,23 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 
 	
 	promise_arr = [];
-	let currentYear = max_year;
+	let currentYear = max_year, month = 1, search_params ='';
 	
 	while (currentYear >= min_year && currentYear <= max_year){
-
+		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-K&owner=exclude&count=1';
 		promise_arr.push(new Promise(function(resolve,reject){
-			get_document(currentYear, symbolId, '10-K', resolve,reject)
+			get_document(currentYear, symbolId, search_params, '10-K', resolve,reject)
 		}))
 		
 		currentYear--;
 	} 
-	promise_arr.push(new Promise(function(resolve,reject){
-		get_document(max_year, symbolId, '10-Q', resolve,reject);
-	}))
+	while (month <= 12){
+		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-Q&owner=exclude&count=1&dateb=' + max_year + (month<10 ? '0' + month : month) + '31' + '&datea=' + max_year + (month<10 ? '0' + month : month) +'01';
+		promise_arr.push(new Promise(function(resolve,reject){	
+			get_document(max_year, symbolId, search_params, '10-Q', resolve,reject);
+		}))
+		month++;
+	}	
 	
 	
 	Promise.all(promise_arr).then(function(values) {
@@ -66,11 +70,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 		return 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
 	} 
 	
-	function get_document(year, symbolId,  type, resolve, reject){
-		let search_params = '&Find=Search&owner=exclude&action=getcompany&type=' + type + '&owner=exclude&count=10';
-		if (type === '10-Q'){
-			search_params = search_params + 'dateb=' + year + '1231' + 'datea=' + year + '0101'
-		}
+	function get_document(year, symbolId, search_params, type, resolve, reject){
 		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + search_params)
 		.then((htmlString) => build_url(htmlString, year, type))
 		.then((url) => rp(url))
