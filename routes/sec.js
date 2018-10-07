@@ -3,11 +3,13 @@ const router = express.Router();
 const rp = require('request-promise');
 const htmlExtractor = require('html-extract-js');
 const parseXbrl = require('parse-xbrl-10k');
-const config = {log:false};
-
+var fs = require('fs');
+const getDirName = require('path').dirname;
+const config = {log:false, fs:true};
 router.get('/:maxYear/:symbolId', function(req, res) {
 
 	let now = new Date();
+	let date_helper = new Date();
 	let symbolId = req.params.symbolId,
 	max_year = req.params.maxYear;
 	max_year = parseInt(max_year) < now.getFullYear() ? max_year : now.getFullYear();
@@ -45,15 +47,30 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 			get_document(max_year, symbolId, search_params, '10-Q', resolve,reject);
 		}))
 		month++;
-	}	
+	}
 	
 	
-	Promise.all(promise_arr).then(function(values) {
-		for(let value of values){
-			if ((value) && (Object.keys(value).length !== 0)){
-				merged_result.push(value);
+	Promise.all(promise_arr).then(function(responses) {
+		for(let response of responses){
+			if ((response.parsed_10k) && (Object.keys(response.parsed_10k).length !== 0)){
+				let json_result;
+				if (response.parsed_10k.value){
+					json_result = response.parsed_10k.value();
+				}
+				else{
+					json_result = response.parsed_10k
+				}
+				merged_result.push(json_result);
+				if (response.fs_url){
+					let split_url = response.fs_url.split('/');
+					let fileName = split_url[split_url.length-1];
+					fileName = fileName.replace('.xml','.json');
+					const file = fs.createWriteStream('./fs/' + fileName);
+					file.write(JSON.stringify(json_result));
+					file.end();
+				}
 			}
-		}		
+		}			
 		res.send({merged_result})
 	  });
 	function build_url(htmlString, year, type){
@@ -71,6 +88,9 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	} 
 	
 	function get_document(year, symbolId, search_params, type, resolve, reject){
+		let fs_url;
+
+		
 		rp('http://www.sec.gov/cgi-bin/browse-edgar?CIK=' + symbolId + search_params)
 		.then((htmlString) => build_url(htmlString, year, type))
 		.then((url) => rp(url))
@@ -87,11 +107,32 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 				log(url);
 				return url;
 			})
-		.then((url) => rp(url))
+		.then((url) =>{
+			fs_url = url;
+			//check if file exsits on files system
+			let split_url = fs_url.split('/');
+			let fileName = split_url[split_url.length-1];
+			fileName = fileName.replace('.xml','.json');
+			return {fileName, url};
+		})
+		.then((result) => {
+			return isFile('./fs/', result.fileName)})
+		.then((file) => {
+				if (file.size > 0) {
+					var contents = fs.readFileSync('./fs/' + file.name, 'utf8');
+					if (contents){
+						resolve({parsed_10k: JSON.parse(contents)})
+					}
+					else{
+						return rp(fs_url);
+					}
+				}
+				return rp(fs_url);
+		})	
 		.then((htmlString) => {
 				let parsed_10k = parseXbrl.parseStr(htmlString);
 				if(parsed_10k){
-					resolve(parsed_10k); 
+					resolve({fs_url, parsed_10k}); 
 				}
 		
 		}).catch((err) => {
@@ -101,8 +142,25 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	 
 	}
 	
-});
-
+})
+function isFile(path, fileName)  {
+	return new Promise((resolvie) => {
+	  fs.stat(path + fileName, (err, result) => {
+	 	if (err === null){
+			result = {size: result.size, name: fileName};
+		} else if(err.code == 'ENOENT') {
+			// file does not exist
+			result = {size: 0, mtime: Date.now()};
+		} else {
+			result = {size: 0, mtime: Date.now(), error:err.code};
+		}
+		resolvie(result);
+	  })
+	}).catch((err) => {
+		log(err + " year:" + year);
+		resolvie({})
+	});
+  }
 function log(msg){
 	if (config.log){
 		console.log(msg);
