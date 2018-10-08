@@ -31,7 +31,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 
 	
 	promise_arr = [];
-	let currentYear = max_year, month = 1, search_params ='';
+	let currentYear = max_year, month = 12, search_params ='', monthCount = 18;
 	
 	while (currentYear >= min_year && currentYear <= max_year){
 		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-K&owner=exclude&count=1';
@@ -41,12 +41,17 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 		
 		currentYear--;
 	} 
-	while (month <= 12){
+	while (month >= 1 && monthCount >= 1){
 		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-Q&owner=exclude&count=1&dateb=' + max_year + (month<10 ? '0' + month : month) + '31' + '&datea=' + max_year + (month<10 ? '0' + month : month) +'01';
 		promise_arr.push(new Promise(function(resolve,reject){	
 			get_document(max_year, symbolId, search_params, '10-Q', resolve,reject);
 		}))
-		month++;
+		month--;
+		if (month == 0){
+			month = 12;
+			max_year = max_year -1;
+		}
+		monthCount--;
 	}
 	
 	
@@ -144,7 +149,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	
 })
 function isFile(path, fileName)  {
-	return new Promise((resolvie) => {
+	return new Promise((resolve) => {
 	  fs.stat(path + fileName, (err, result) => {
 	 	if (err === null){
 			result = {size: result.size, name: fileName};
@@ -154,11 +159,11 @@ function isFile(path, fileName)  {
 		} else {
 			result = {size: 0, mtime: Date.now(), error:err.code};
 		}
-		resolvie(result);
+		resolve(result);
 	  })
 	}).catch((err) => {
 		log(err + " year:" + year);
-		resolvie({})
+		resolve({})
 	});
   }
 function log(msg){
