@@ -3,7 +3,8 @@ const router = express.Router();
 const rp = require('request-promise');
 const htmlExtractor = require('html-extract-js');
 const parseXbrl = require('parse-xbrl-10k');
-var fs = require('fs');
+const fs = require('fs');
+const financialCalaculator = require('./calculate/financialCalaculator');
 const getDirName = require('path').dirname;
 const config = {log:false, fs:true};
 router.get('/:maxYear/:symbolId', function(req, res) {
@@ -75,7 +76,8 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 					file.end();
 				}
 			}
-		}			
+		}
+		financialCalaculator.calculate(merged_result);		
 		res.send({merged_result})
 	  });
 	function build_url(htmlString, year, type){
