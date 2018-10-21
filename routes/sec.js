@@ -3,10 +3,14 @@ const router = express.Router();
 const rp = require('request-promise');
 const htmlExtractor = require('html-extract-js');
 const parseXbrl = require('parse-xbrl-10k');
-const fs = require('fs');
+
 const financialCalaculator = require('./calculate/financialCalaculator');
+const repository = require('./repository/repositoryFactory');
 const getDirName = require('path').dirname;
 const config = {log:false, fs:true};
+
+repository.registerRepositry("fs");
+
 router.get('/:maxYear/:symbolId', function(req, res) {
 
 	let now = new Date();
@@ -71,9 +75,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 					let split_url = response.fs_url.split('/');
 					let fileName = split_url[split_url.length-1];
 					fileName = fileName.replace('.xml','.json');
-					const file = fs.createWriteStream('./fs/' + fileName);
-					file.write(JSON.stringify(json_result));
-					file.end();
+					repository.create(fileName,json_result);
 				}
 			}
 		}
@@ -123,10 +125,10 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 			return {fileName, url};
 		})
 		.then((result) => {
-			return isFile('./fs/', result.fileName)})
+			return repository.isExists('./fs/', result.fileName)})
 		.then((file) => {
 				if (file.size > 0) {
-					var contents = fs.readFileSync('./fs/' + file.name, 'utf8');
+					var contents = repository.get(file.name);
 					if (contents){
 						resolve({parsed_10k: JSON.parse(contents)})
 					}
@@ -150,24 +152,6 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	}
 	
 })
-function isFile(path, fileName)  {
-	return new Promise((resolve) => {
-	  fs.stat(path + fileName, (err, result) => {
-	 	if (err === null){
-			result = {size: result.size, name: fileName};
-		} else if(err.code == 'ENOENT') {
-			// file does not exist
-			result = {size: 0, mtime: Date.now()};
-		} else {
-			result = {size: 0, mtime: Date.now(), error:err.code};
-		}
-		resolve(result);
-	  })
-	}).catch((err) => {
-		log(err + " year:" + year);
-		resolve({})
-	});
-  }
 function log(msg){
 	if (config.log){
 		console.log(msg);
