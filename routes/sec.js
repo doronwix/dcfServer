@@ -4,6 +4,7 @@ const rp = require('request-promise');
 const htmlExtractor = require('html-extract-js');
 const parseXbrl = require('parse-xbrl-10k');
 
+
 const financialCalaculator = require('./calculate/financialCalaculator');
 const repository = require('./repository/repositoryFactory');
 const getDirName = require('path').dirname;
@@ -42,7 +43,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-K&owner=exclude&count=1';
 		promise_arr.push(new Promise(function(resolve,reject){
 			get_document(currentYear, symbolId, search_params, '10-K', resolve,reject)
-		}))
+		}));
 		
 		currentYear--;
 	} 
@@ -58,7 +59,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 		}
 		monthCount--;
 	}
-	
+
 	
 	Promise.all(promise_arr).then(function(responses) {
 		for(let response of responses){
@@ -79,9 +80,12 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 				}
 			}
 		}
-		financialCalaculator.calculate(merged_result);		
+		return new Promise(function(resolve,reject){ 
+			financialCalaculator.calculate(merged_result, resolve,reject);
+	  	})
+	}).then(function(financialCalculationsResult){
 		res.send({merged_result})
-	  });
+	});
 	function build_url(htmlString, year, type){
 
 		let extractor = htmlExtractor.load(htmlString, {charset: 'UTF-8'});

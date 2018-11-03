@@ -1,16 +1,21 @@
-const extrapolate = require('../../vendor/extrapolate');
+
 const utils = require('../utils');
 
-module.exports.calculate = function(obj){
-    let mappedData = utils.objToStrMap(obj);
-    let predict = new extrapolate.LINEAR();
+module.exports.calculate = function(mergedReportsObject, resolve,reject){
+     let mappedData = utils.objToStrMap(mergedReportsObject);
+     let x =[],y=[];
 
     mappedData.forEach(function(value, key) {
-        if (value.DocumentType === "10-K"){
-            predict.given(value.DocumentFiscalYearFocus).get(value.Revenues);
+        if (value.DocumentType === "10-K" && !isNaN(value.DocumentFiscalYearFocus)){
+            x.push(parseInt(value.DocumentFiscalYearFocus,10));
+            y.push(parseFloat(value.Revenues));
         }    
     });
-    console.log(predict.valueFor('2019'));
-    console.log(predict.valueFor('2020'));
-    console.log(predict.valueFor('2021'));
+    var spawn = require('child_process').spawn,
+        py = spawn('python', ['./routes/calculate/calculator.py',
+             JSON.stringify(x), JSON.stringify(y)
+        ]);
+        py.stdout.on('data', function (data) {
+            resolve(data.toString());
+        })
 }

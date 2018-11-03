@@ -8,6 +8,7 @@ const rp = require('request-promise');
 const parseXbrl = require('parse-xbrl-10k');
 const yahoo = require('./routes/yahoo');
 const sec = require('./routes/sec');
+const test = require('./routes/test');
 
 
 
@@ -40,6 +41,7 @@ var router = express.Router();              // get an instance of the express Ro
 app.use('/', router);
 app.use('/api/yahoo', yahoo);
 app.use('/api/sec', sec);
+app.use('/api/test', test);
 
 
 // START THE SERVER

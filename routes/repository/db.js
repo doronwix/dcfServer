@@ -1,6 +1,9 @@
-const { Client } = require('pg'); //postgresql
+/* const { Client } = require('pg'); //postgresql
+const connectionString = "postgres://postgres:postgres@localhost:5432/postgres";
 
-/* const client = new Client({
+const client = new pg.Client(conn);
+client.connect();
+const client = new Client({
     connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/todo',
     ssl: false,
   });
@@ -9,7 +12,7 @@ const { Client } = require('pg'); //postgresql
 
   client.query('create table reports(name varchar(20), data jsonb)', (err, res) => {
     if (err) throw err;
-  }); */
+  });
 module.exports.create = (fileName, data) => {
     client.query('INSERT INTO reports VALUES (' + fileName + ', ' + data + ');', (err, res) => {
         if (err) throw err;
@@ -37,3 +40,4 @@ module.exports.isExists = (path, fileName) => {
       });
     return result;
 } 
+ */
