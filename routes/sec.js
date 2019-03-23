@@ -81,10 +81,13 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 			}
 		}
 		return new Promise(function(resolve,reject){ 
-			financialCalaculator.calculate(merged_result, resolve,reject);
+			financialCalaculator.linear_extrapolation(merged_result, resolve,reject);
 	  	})
 	}).then(function(financialCalculationsResult){
-		res.send({merged_result})
+		let financialData = {merged_result,  financialCalculationsResult};
+
+		//merged_result.push({dcf_calculated_Data_5: {linear_extrapolation: financialCalculationsResult}});
+		res.send(financialData);
 	});
 	function build_url(htmlString, year, type){
 
