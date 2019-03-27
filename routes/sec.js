@@ -81,6 +81,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 			}
 		}
 		return new Promise(function(resolve,reject){ 
+			
 			financialCalaculator.linear_extrapolation(merged_result, resolve,reject);
 	  	})
 	}).then(function(financialCalculationsResult){
