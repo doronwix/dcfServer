@@ -12,37 +12,28 @@ const config = {log:false, fs:true};
 
 repository.registerRepositry("fs");
 
-router.get('/:maxYear/:symbolId', function(req, res) {
+router.get('/:symbolId/:maxYear?', function(req, res) {
 
-	let now = new Date();
-	let date_helper = new Date();
-	let symbolId = req.params.symbolId,
-	max_year = req.params.maxYear;
-	max_year = parseInt(max_year) < now.getFullYear() ? max_year : now.getFullYear();
 
-	if (!max_year){
-		res.send("please send maximum year to review");
-		return;
-	}
-
-	let min_year = max_year - 10;
-
-	var merged_result = [];
+	let now = new Date(),
+		symbolId = req.params.symbolId,
+		max_year_param = req.params.maxYear ? req.params.maxYear : now.getFullYear(),
+		max_year = parseInt(max_year_param) < now.getFullYear() ? max_year_param : now.getFullYear(),
+		min_year = max_year - 10,
+		merged_result = [],
+		promise_arr = [],
+		currentYear = max_year, month = 12, search_params ='', monthCount = 18;
 	
+	//url validation:
 	if (!symbolId){
 		res.send("please send symbol");
 		return;
 	}
 
-
-	
-	promise_arr = [];
-	let currentYear = max_year, month = 12, search_params ='', monthCount = 18;
-	
 	while (currentYear >= min_year && currentYear <= max_year){
 		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-K&owner=exclude&count=1';
 		promise_arr.push(new Promise(function(resolve,reject){
-			get_document(currentYear, symbolId, search_params, '10-K', resolve,reject)
+			get_sec_document(currentYear, symbolId, search_params, '10-K', resolve,reject)
 		}));
 		
 		currentYear--;
@@ -50,7 +41,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	while (month >= 1 && monthCount >= 1){
 		search_params = '&Find=Search&owner=exclude&action=getcompany&type=10-Q&owner=exclude&count=1&dateb=' + max_year + (month<10 ? '0' + month : month) + '31' + '&datea=' + max_year + (month<10 ? '0' + month : month) +'01';
 		promise_arr.push(new Promise(function(resolve,reject){	
-			get_document(max_year, symbolId, search_params, '10-Q', resolve,reject);
+			get_sec_document(max_year, symbolId, search_params, '10-Q', resolve,reject);
 		}))
 		month--;
 		if (month == 0){
@@ -81,14 +72,13 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 			}
 		}
 		return new Promise(function(resolve,reject){ 
-			
-			financialCalaculator.linear_extrapolation(merged_result, resolve,reject);
+
+			let relation_test_arr = evaluateReportAfterExtrapolation(merged_result, "Revenues", "NetIncomeLoss")
+		
+			resolve(relation_test_arr);
 	  	})
 	}).then(function(financialCalculationsResult){
-		let financialData = {merged_result,  financialCalculationsResult};
-
-		//merged_result.push({dcf_calculated_Data_5: {linear_extrapolation: financialCalculationsResult}});
-		res.send(financialData);
+		res.send( {merged_result,  financialCalculationsResult});
 	});
 	function build_url(htmlString, year, type){
 
@@ -104,7 +94,7 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 		return 'https://www.sec.gov/Archives/edgar/data/'+ currentCik + '/' + accessNumber;
 	} 
 	
-	function get_document(year, symbolId, search_params, type, resolve, reject){
+	function get_sec_document(year, symbolId, search_params, type, resolve, reject){
 		let fs_url;
 
 		
@@ -160,6 +150,23 @@ router.get('/:maxYear/:symbolId', function(req, res) {
 	}
 	
 })
+function evaluateReportAfterExtrapolation(merged_result, field1, field2) {
+	let extrapolation1 = financialCalaculator.linear_extrapolation(merged_result, field1);
+	let extrapolation2 = financialCalaculator.linear_extrapolation(merged_result, field2);
+	return extrapolation1.map((elm, index) => {
+		if (elm.fiscalYear === extrapolation2[index].fiscalYear) {
+			return {"value": elm[field1] - extrapolation2[index][field2], "fiscalYear": elm.fiscalYear};
+		}
+		else {
+			for (j = 0; j < extrapolation2.length; j++) {
+				if (elm.fiscalYear === extrapolation2[j].fiscalYear) {
+					return {"value": elm[field1] - extrapolation2[index][field2], "fiscalYear": elm.fiscalYear};
+				}
+			}
+		}
+	});
+}
+
 function log(msg){
 	if (config.log){
 		console.log(msg);

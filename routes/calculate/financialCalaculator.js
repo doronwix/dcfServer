@@ -1,6 +1,6 @@
 const utils = require("../utils");
-var linear = require('everpolate').linear;
-var linearRegression = require('everpolate').linearRegression;
+const linear = require('everpolate').linear;
+const linearRegression = require('everpolate').linearRegression;
 
 /* module.exports.py_calculate = function(mergedReportsObject, resolve, reject) {
   let mappedData = utils.objToStrMap(mergedReportsObject);
@@ -27,34 +27,39 @@ var linearRegression = require('everpolate').linearRegression;
   });
 }; */
 
-module.exports.linear_extrapolation = function(mergedReportsObject, resolve, reject) {
-  let mappedData = mergedReportsObject.sort(utils.dynamicCompareForSort("DocumentFiscalYearFocus","asc"));
-  let x = [],
-    y = [],
-    final = [];
+module.exports.linear_extrapolation = function(mergedReportsObject, field) {
+  let mappedData = mergedReportsObject.sort(utils.dynamicCompareForSort("DocumentFiscalYearFocus","asc")),
+  extrapolated_filed_per_year = [];
 
-  mappedData.forEach(function(value, key) {
-    if (value.DocumentType === "10-K" && !isNaN(value.DocumentFiscalYearFocus)) {
-      let fiscalYear = parseInt(value.DocumentFiscalYearFocus, 10);
-      let revenues = parseFloat(value.Revenues)
-      if(revenues>0){
-        x.push(fiscalYear);
-        y.push(revenues);
-        final.push({fiscalYear, revenues });
-      }
+  
+    let x = [],
+    y = [],
+    final = [],
+    currentYear = new Date().getFullYear(),
+    years = [],
+    result;
+
+    mappedData.forEach(function(value, key) {
+      if (value.DocumentType === "10-K" && !isNaN(value.DocumentFiscalYearFocus)) {
+        let fiscalYear = parseInt(value.DocumentFiscalYearFocus, 10);
+        let temp_y = parseFloat(value[field])
+        if(temp_y > 0){
+          x.push(fiscalYear);
+          y.push(temp_y);
+          final.push({fiscalYear, [field]: temp_y });
+        }
+      } 
+    });
+
+    for (year=currentYear; year< currentYear + 5; year++ )
+    {
+      years.push(year);
     }
-  });
-  let currentYear = new Date().getFullYear(); 
-  let years =[];
-  for (year=currentYear; year< currentYear + 5; year++ )
-  {
-    years.push(year);
-  }
-  //var result = linear([...years], x, y);
-  var result = linearRegression(x, y);
-  result = result.evaluate([...years]);
-  result.map((revenues,index) => final.push({fiscalYear:currentYear + index, revenues }));
-    
- 
-  resolve(final);
+
+    let temp = linearRegression(x, y);
+    result = temp.evaluate([...years]);
+    result.map((val,index) => final.push({fiscalYear:currentYear + index, [field]: val }));
+    extrapolated_filed_per_year.push(final)  
+    return final;
+  
 };
