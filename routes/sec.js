@@ -206,7 +206,16 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
       });
   }
 });
-function evaluateReportAfterExtrapolation(merged_result, field1, field2) {
+
+function evaluateReportAfterExtrapolation(merged_result, field1, field2, oper='-') {
+
+  var operators = {
+    '+': function(a, b) { return a + b },
+    '-': function(a, b) { return a - b },
+    '*': function(a, b) { return a * b },
+    ':': function(a, b) { return a / b }
+  }; 
+
   let extrapolation1 = financialCalaculator.linear_extrapolation(
     merged_result,
     field1
@@ -215,17 +224,19 @@ function evaluateReportAfterExtrapolation(merged_result, field1, field2) {
     merged_result,
     field2
   );
+  
+  //trying to match the data even if years to exrrapolate are different for the 2 fields
   return extrapolation1.map((elm, index) => {
     if (elm.fiscalYear === extrapolation2[index].fiscalYear) {
       return {
-        value: elm[field1] - extrapolation2[index][field2],
+        value: operators[oper](elm[field1], extrapolation2[index][field2]),
         fiscalYear: elm.fiscalYear
       };
     } else {
       for (j = 0; j < extrapolation2.length; j++) {
         if (elm.fiscalYear === extrapolation2[j].fiscalYear) {
           return {
-            value: elm[field1] - extrapolation2[index][field2],
+            value: operators[oper](elm[field1],extrapolation2[index][field2]),
             fiscalYear: elm.fiscalYear
           };
         }
