@@ -20,8 +20,8 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
       : now.getFullYear(),
     max_year =
       parseInt(max_year_param) < now.getFullYear()
-        ? max_year_param
-        : now.getFullYear(),
+        ? max_year_param + 1
+        : now.getFullYear() + 1,
     min_year = max_year - 10,
     merged_result = [],
     promise_arr = [],
@@ -43,7 +43,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
   };
   //prepare regex for scrapping access number
   let regexToYear = {};
-  for (c_year = min_year; c_year < max_year; c_year++) {
+  for (c_year = min_year; c_year  < max_year; c_year++) {
     let year_dec = (c_year + "").substring(2, 4);
     regexToYear[c_year] = new RegExp(
       "([0][\\d]+)-" + year_dec + "-([\\d]+)",
@@ -61,21 +61,22 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
   }
 
   //get 10-Q for the last year
+  let tenQlastYear = max_year - 1;
   while (month >= 1 && monthCount >= 1) {
     search_params =
       "&Find=Search&owner=exclude&action=getcompany&type=10-Q&owner=exclude&count=1&dateb=" +
-      max_year +
+      tenQlastYear +
       (month < 10 ? "0" + month : month) +
       "31" +
       "&datea=" +
-      max_year +
+      tenQlastYear +
       (month < 10 ? "0" + month : month) +
       "01";
-    promise_arr.push(getPromise(max_year, "10-Q", search_params));
+    promise_arr.push(getPromise(tenQlastYear, "10-Q", search_params));
     month--;
     if (month == 0) {
       month = 12;
-      max_year = max_year - 1;
+      tenQlastYear = tenQlastYear - 1;
     }
     monthCount--;
   }
@@ -117,6 +118,8 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
     .then(function(financialCalculationsResult) {
       //send final result to client
       res.send({ merged_result, financialCalculationsResult });
+    }).catch(err => {
+      log(err);
     });
 
   //scrap sec web site and extract url to document
@@ -157,7 +160,10 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
     rp(
       "http://www.sec.gov/cgi-bin/browse-edgar?CIK=" + symbolId + search_params
     )
-      .then(htmlString => get_xk_url(htmlString, year, type))
+      .then(htmlString => {
+        let url = get_xk_url(htmlString, year, type);
+        return url;
+      })
       .then(url => rp(url))
       .then(htmlString => {
         let extractor = htmlExtractor.load(htmlString, { charset: "UTF-8" });
@@ -166,7 +172,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
         let tenKurl = regex.exec(html);
         if (!tenKurl) {
           log("no document in this year:" + year);
-          resolve({});
+          reject({});
         }
         let url = "https://www.sec.gov" + tenKurl[0];
         log(url);
@@ -192,12 +198,16 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
             return rp(fs_url);
           }
         }
-        return rp(fs_url);
       })
       .then(htmlString => {
-        let parsed_10k = parseXbrl.parseStr(htmlString);
-        if (parsed_10k) {
-          resolve({ fs_url, parsed_10k });
+        if(htmlString){
+          let parsed_10k = parseXbrl.parseStr(htmlString);
+          if (parsed_10k) {
+            resolve({ fs_url, parsed_10k });
+          }
+        }
+        else{
+          resolve({});
         }
       })
       .catch(err => {
