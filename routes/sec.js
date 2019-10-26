@@ -112,14 +112,18 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
           "NetIncomeLoss"
         );
 
+        let additional = calculatedColumns(
+          merged_result
+        );
+
         resolve(relation_test_arr);
       });
     })
     .then(function(financialCalculationsResult) {
       //send final result to client
       res.send({ merged_result, financialCalculationsResult });
-    }).catch(err => {
-      log(err);
+    }).catch(err=>{
+      log(err)
     });
 
   //scrap sec web site and extract url to document
@@ -172,7 +176,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
         let tenKurl = regex.exec(html);
         if (!tenKurl) {
           log("no document in this year:" + year);
-          reject({});
+          resolve({});
         }
         let url = "https://www.sec.gov" + tenKurl[0];
         log(url);
@@ -198,6 +202,9 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
             return rp(fs_url);
           }
         }
+        else{
+          return rp(fs_url);
+        }
       })
       .then(htmlString => {
         if(htmlString){
@@ -217,7 +224,30 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
   }
 });
 
-function evaluateReportAfterExtrapolation(merged_result, field1, field2, oper='-') {
+function calculatedColumns(data){
+  let operating_Margin_sum = 0,
+      operating_Margin_avrg = 0,
+      counter = 0,
+      factor = 1;
+  data.map((elm, index) => {   
+    if (elm.OperatingIncome > 0 && elm.Revenues > 0){
+      factor = 1;
+      if (elm.DocumentType === "10-Q"){
+        factor = 0.25
+      }
+      operating_Margin_sum = operating_Margin_sum + Math.ceil( elm.OperatingIncome / elm.Revenues * factor * 100)/100;
+      counter++;
+    }
+  });
+  if (counter>0){
+    operating_Margin_avrg = Math.round(operating_Margin_sum / counter * 100) / 100;
+  }
+    
+  return operating_Margin_avrg;
+  
+}
+
+function evaluateReportAfterExtrapolation(data, field1, field2, oper='-') {
 
   var operators = {
     '+': function(a, b) { return a + b },
@@ -227,32 +257,35 @@ function evaluateReportAfterExtrapolation(merged_result, field1, field2, oper='-
   }; 
 
   let extrapolation1 = financialCalaculator.linear_extrapolation(
-    merged_result,
+    data,
     field1
   );
   let extrapolation2 = financialCalaculator.linear_extrapolation(
-    merged_result,
+    data,
     field2
   );
   
   //trying to match the data even if years to exrrapolate are different for the 2 fields
   return extrapolation1.map((elm, index) => {
-    if (elm.fiscalYear === extrapolation2[index].fiscalYear) {
-      return {
-        value: operators[oper](elm[field1], extrapolation2[index][field2]),
-        fiscalYear: elm.fiscalYear
-      };
-    } else {
-      for (j = 0; j < extrapolation2.length; j++) {
-        if (elm.fiscalYear === extrapolation2[j].fiscalYear) {
-          return {
-            value: operators[oper](elm[field1],extrapolation2[index][field2]),
-            fiscalYear: elm.fiscalYear
-          };
+   
+      if (elm.fiscalYear === extrapolation2[index].fiscalYear) {
+        return {
+          value: operators[oper](elm[field1], extrapolation2[index][field2]),
+          fiscalYear: elm.fiscalYear
+        };
+      } else {
+        for (j = 0; j < extrapolation2.length; j++) {
+          if (elm.fiscalYear === extrapolation2[j].fiscalYear) {
+            return {
+              value: operators[oper](elm[field1],extrapolation2[index][field2]),
+              fiscalYear: elm.fiscalYear
+            };
+          }
         }
       }
     }
-  });
+
+  );
 }
 
 function log(msg) {
