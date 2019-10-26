@@ -12,14 +12,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "body-parser": "^1.18.2",
+    "body-parser": "^1.19.0",
     "everpolate": "0.0.3",
-    "express": "^4.16.3",
+    "express": "^4.17.1",
     "html-extract-js": "^0.1.9",
-    "mongoose": "^5.3.6",
-    "parse-xbrl-10k": "https://github.com/doronwix/parse-xbrl-10k",
+    "mongoose": "^5.6.10",
+    "parse-xbrl-10k": "git+https://github.com/doronwix/parse-xbrl-10k.git",
     "request": "^2.85.0",
-    "request-promise": "^4.2.2",
+    "request-promise": "^4.2.4",
     "xml2js": "^0.4.19"
   },
   "devDependencies": {
