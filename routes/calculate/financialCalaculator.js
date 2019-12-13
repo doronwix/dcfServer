@@ -43,7 +43,7 @@ module.exports.linear_extrapolation = function(mergedReportsObject, field) {
       if (value.DocumentType === "10-K" && !isNaN(value.DocumentFiscalYearFocus)) {
         let fiscalYear = parseInt(value.DocumentFiscalYearFocus, 10);
         let temp_y = parseFloat(value[field])
-        if(temp_y > 0){
+        if(temp_y){
           x.push(fiscalYear);
           y.push(temp_y);
           final.push({fiscalYear, [field]: temp_y });

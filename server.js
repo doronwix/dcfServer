@@ -8,6 +8,7 @@ const parseXbrl = require("parse-xbrl-10k");
 const yahoo = require("./routes/yahoo");
 const sec = require("./routes/sec");
 const test = require("./routes/test");
+const assets = require("./routes/assets");
 
 // BASE SETUP
 // =============================================================================
@@ -46,8 +47,10 @@ app.use(function(req, res, next) {
 // this will let us get the data from a POST
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+//app.use(express.static('assets'));
 
-var port = process.env.PORT || 8080; // set our port
+var port = process.env.PORT || 8080; // set our port..
+
 
 // ROUTES FOR OUR API
 // =============================================================================
@@ -58,9 +61,11 @@ var router = express.Router(); // get an instance of the express Router
 // REGISTER OUR ROUTES -------------------------------
 // all of our routes will be prefixed with /api
 app.use("/", router);
+app.use("/api/nasdaq", assets);
 app.use("/api/yahoo", yahoo);
 app.use("/api/sec", sec);
 app.use("/api/test", test);
+
 
 // START THE SERVER
 // =============================================================================

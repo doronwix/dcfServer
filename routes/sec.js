@@ -265,7 +265,7 @@ function evaluateReportAfterExtrapolation(data, field1, field2, oper='-') {
     field2
   );
   
-  //trying to match the data even if years to exrrapolate are different for the 2 fields
+  //trying to match the data even if years to extrapolate are different for the 2 fields
   return extrapolation1.map((elm, index) => {
    
       if (elm.fiscalYear === extrapolation2[index].fiscalYear) {

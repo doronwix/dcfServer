@@ -5,9 +5,9 @@
     "node": "8.9.4"
   },
   "description": "extract dcf values from known API's",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
-    "start": "set DEBUG=app & nodemon server.js"
+    "start": "set DEBUG=app & nodemon index.js"
   },
   "author": "",
   "license": "ISC",
