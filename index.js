@@ -5,7 +5,7 @@ const runExpressServer = require('./server');
 // Check if current process is master.
 if (cluster.isMaster) {
   // Get total CPU cores.
-  const cpuCount = os.cpus().length;
+  const cpuCount = os.cpus().length -2; // i dont want to use all cores
 
   // Spawn a worker for every core.
   for (let j = 0; j < cpuCount; j++) {

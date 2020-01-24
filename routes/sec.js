@@ -5,7 +5,7 @@ const htmlExtractor = require("html-extract-js");
 const parseXbrl = require("parse-xbrl-10k");
 const utils = require("./utils");
 
-const financialCalaculator = require("./calculate/financialCalaculator");
+const extrapolateRelations = require("./calculate/extrapolateRelations");
 const repository = require("./repository/repositoryFactory");
 const getDirName = require("path").dirname;
 const config = { log: false, fs: true };
@@ -23,7 +23,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
         ? max_year_param + 1
         : now.getFullYear() + 1,
     min_year = max_year - 10,
-    merged_result = [],
+    financialData = [],
     promise_arr = [],
     currentYear = max_year,
     month = 12,
@@ -95,7 +95,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
           } else {
             json_result = response.parsed_10k;
           }
-          merged_result.push(json_result);
+          financialData.push(json_result);
           if (response.fs_url) {
             let split_url = response.fs_url.split("/");
             let fileName = split_url[split_url.length - 1];
@@ -105,23 +105,38 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
         }
       }
       return new Promise(function(resolve, reject) {
+
+        let extrapolations = {};
         //extrapolate a dcf relation
-        let relation_test_arr = evaluateReportAfterExtrapolation(
-          merged_result,
+        let revenuesExtrapolated = extrapolateRelations(
+          financialData,
           "Revenues",
-          "NetIncomeLoss"
+          //"NetIncomeLoss"
+        );
+        if (revenuesExtrapolated.length > 0){
+          extrapolations.revenuesExtrapolated = revenuesExtrapolated;
+        }
+
+        let netIncomeExtrapolated = extrapolateRelations(
+          financialData,
+          "NetIncomeLoss",
+          //"NetIncomeLoss"
         );
 
-        let additional = calculatedColumns(
-          merged_result
-        );
+        if (netIncomeExtrapolated.length > 0){
+          extrapolations.netIncomeExtrapolated = netIncomeExtrapolated;
+        }
 
-        resolve(relation_test_arr);
+        let averages = addCalculatedAverages(
+          financialData
+        );
+       
+        resolve({financialData,extrapolations,averages});
       });
     })
-    .then(function(financialCalculationsResult) {
+    .then(function(response) {
       //send final result to client
-      res.send({ merged_result, financialCalculationsResult });
+      res.send(response);
     }).catch(err=>{
       log(err)
     });
@@ -224,10 +239,10 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
   }
 });
 
-function calculatedColumns(data){
-  let operating_Margin_sum = 0,
-      operating_Margin_avrg = 0,
-      counter = 0,
+function addCalculatedAverages(data){
+  let operating_Margin_sum = workingCapital_sum = 0,
+      operating_Margin_avrg = workingCapital_avrg = 0,
+      counter_opm = counter_wc = 0,
       factor = 1;
   data.map((elm, index) => {   
     if (elm.OperatingIncome > 0 && elm.Revenues > 0){
@@ -236,57 +251,29 @@ function calculatedColumns(data){
         factor = 0.25
       }
       operating_Margin_sum = operating_Margin_sum + Math.ceil( elm.OperatingIncome / elm.Revenues * factor * 100)/100;
-      counter++;
+      counter_opm++;
+    }
+    if (elm.WorkingCapital > 0){
+      factor = 1;
+      if (elm.DocumentType === "10-Q"){
+        factor = 0.25
+      }
+      workingCapital_sum = workingCapital_sum + elm.WorkingCapital + Math.ceil( elm.WorkingCapital * factor * 100)/100;;
+      counter_wc++;
     }
   });
-  if (counter>0){
-    operating_Margin_avrg = Math.round(operating_Margin_sum / counter * 100) / 100;
+  if (counter_opm>0){
+    operating_Margin_avrg = Math.round(operating_Margin_sum / counter_opm * 100) / 100;
   }
-    
-  return operating_Margin_avrg;
+  if (counter_wc>0){
+    workingCapital_avrg = Math.round(workingCapital_sum / counter_wc * 100) / 100;
+  }
+  //enrich data object with the averages
+return {operating_Margin_avrg, workingCapital_avrg};
+  
   
 }
 
-function evaluateReportAfterExtrapolation(data, field1, field2, oper='-') {
-
-  var operators = {
-    '+': function(a, b) { return a + b },
-    '-': function(a, b) { return a - b },
-    '*': function(a, b) { return a * b },
-    ':': function(a, b) { return a / b }
-  }; 
-
-  let extrapolation1 = financialCalaculator.linear_extrapolation(
-    data,
-    field1
-  );
-  let extrapolation2 = financialCalaculator.linear_extrapolation(
-    data,
-    field2
-  );
-  
-  //trying to match the data even if years to extrapolate are different for the 2 fields
-  return extrapolation1.map((elm, index) => {
-   
-      if (elm.fiscalYear === extrapolation2[index].fiscalYear) {
-        return {
-          value: operators[oper](elm[field1], extrapolation2[index][field2]),
-          fiscalYear: elm.fiscalYear
-        };
-      } else {
-        for (j = 0; j < extrapolation2.length; j++) {
-          if (elm.fiscalYear === extrapolation2[j].fiscalYear) {
-            return {
-              value: operators[oper](elm[field1],extrapolation2[index][field2]),
-              fiscalYear: elm.fiscalYear
-            };
-          }
-        }
-      }
-    }
-
-  );
-}
 
 function log(msg) {
   if (config.log) {
