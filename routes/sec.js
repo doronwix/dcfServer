@@ -5,14 +5,14 @@ const htmlExtractor = require("html-extract-js");
 const parseXbrl = require("parse-xbrl-10k");
 const utils = require("./utils");
 
-const extrapolateRelations = require("./calculate/extrapolateRelations");
+const extrapolate = require("./calculate/extrapolate");
 const repository = require("./repository/repositoryFactory");
 const getDirName = require("path").dirname;
 const config = { log: false, fs: true };
 
 repository.registerRepositry("fs");
 
-router.get("/:symbolId/:maxYear?", function(req, res) {
+router.get("/:symbolId/:maxYear?", function (req, res) {
   let now = new Date(),
     symbolId = req.params.symbolId,
     max_year_param = req.params.maxYear
@@ -37,13 +37,13 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
   }
 
   let getPromise = (year, type, search_params) => {
-    return new Promise(function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
       get_sec_document(year, symbolId, search_params, type, resolve, reject);
     });
   };
   //prepare regex for scrapping access number
   let regexToYear = {};
-  for (c_year = min_year; c_year  < max_year; c_year++) {
+  for (c_year = min_year; c_year < max_year; c_year++) {
     let year_dec = (c_year + "").substring(2, 4);
     regexToYear[c_year] = new RegExp(
       "([0][\\d]+)-" + year_dec + "-([\\d]+)",
@@ -83,7 +83,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
 
   //after all is fetched buildjson to return
   Promise.all(promise_arr)
-    .then(function(responses) {
+    .then(function (responses) {
       for (let response of responses) {
         if (
           response.parsed_10k &&
@@ -104,41 +104,45 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
           }
         }
       }
-      return new Promise(function(resolve, reject) {
-
+      return new Promise(function (resolve, reject) {
         let extrapolations = {};
         //extrapolate a dcf relation
-        let revenuesExtrapolated = extrapolateRelations(
+        let revenuesExtrapolated = extrapolate.extrapolate(
           financialData,
-          "Revenues",
-          //"NetIncomeLoss"
+          "Revenues"
         );
-        if (revenuesExtrapolated.length > 0){
+        if (revenuesExtrapolated.length > 0) {
           extrapolations.revenuesExtrapolated = revenuesExtrapolated;
         }
 
-        let netIncomeExtrapolated = extrapolateRelations(
+        let all = extrapolate.extrapolateAll(financialData);
+
+        let netIncomeExtrapolated = extrapolate.extrapolate(
           financialData,
-          "NetIncomeLoss",
-          //"NetIncomeLoss"
+          "NetIncomeLoss"
         );
 
-        if (netIncomeExtrapolated.length > 0){
+        if (netIncomeExtrapolated.length > 0) {
           extrapolations.netIncomeExtrapolated = netIncomeExtrapolated;
         }
 
-        let averages = addCalculatedAverages(
-          financialData
-        );
-       
-        resolve({financialData,extrapolations,averages});
+        let liabilities = extrapolate.extrapolate(financialData, "Liabilities");
+
+        if (liabilities.length > 0) {
+          extrapolations.liabilities = liabilities;
+        }
+
+        let averages = addCalculatedAverages(financialData);
+
+        resolve({ financialData, extrapolations, averages });
       });
     })
-    .then(function(response) {
+    .then(function (response) {
       //send final result to client
       res.send(response);
-    }).catch(err=>{
-      log(err)
+    })
+    .catch((err) => {
+      log(err);
     });
 
   //scrap sec web site and extract url to document
@@ -179,12 +183,12 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
     rp(
       "http://www.sec.gov/cgi-bin/browse-edgar?CIK=" + symbolId + search_params
     )
-      .then(htmlString => {
+      .then((htmlString) => {
         let url = get_xk_url(htmlString, year, type);
         return url;
       })
-      .then(url => rp(url))
-      .then(htmlString => {
+      .then((url) => rp(url))
+      .then((htmlString) => {
         let extractor = htmlExtractor.load(htmlString, { charset: "UTF-8" });
         let html = extractor.$("#main-content").html();
         let regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
@@ -197,7 +201,7 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
         log(url);
         return url;
       })
-      .then(url => {
+      .then((url) => {
         fs_url = url;
         //check if file exsits on files system
         let split_url = fs_url.split("/");
@@ -205,10 +209,10 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
         fileName = fileName.replace(".xml", ".json");
         return { fileName, url };
       })
-      .then(result => {
+      .then((result) => {
         return repository.isExists("./fs/", result.fileName);
       })
-      .then(file => {
+      .then((file) => {
         if (file.size > 0) {
           var contents = repository.get(file.name);
           if (contents) {
@@ -216,64 +220,66 @@ router.get("/:symbolId/:maxYear?", function(req, res) {
           } else {
             return rp(fs_url);
           }
-        }
-        else{
+        } else {
           return rp(fs_url);
         }
       })
-      .then(htmlString => {
-        if(htmlString){
+      .then((htmlString) => {
+        if (htmlString) {
           let parsed_10k = parseXbrl.parseStr(htmlString);
           if (parsed_10k) {
             resolve({ fs_url, parsed_10k });
           }
-        }
-        else{
+        } else {
           resolve({});
         }
       })
-      .catch(err => {
+      .catch((err) => {
         log(err + " year:" + year);
         resolve({});
       });
   }
 });
 
-function addCalculatedAverages(data){
-  let operating_Margin_sum = workingCapital_sum = 0,
-      operating_Margin_avrg = workingCapital_avrg = 0,
-      counter_opm = counter_wc = 0,
+function addCalculatedAverages(data) {
+  let operating_Margin_sum = (workingCapital_sum = 0),
+    operating_Margin_avrg = (workingCapital_avrg = 0),
+    counter_opm = (counter_wc = 0),
+    factor = 1;
+  data.map((elm, index) => {
+    if (elm.OperatingIncome > 0 && elm.Revenues > 0) {
       factor = 1;
-  data.map((elm, index) => {   
-    if (elm.OperatingIncome > 0 && elm.Revenues > 0){
-      factor = 1;
-      if (elm.DocumentType === "10-Q"){
-        factor = 0.25
+      if (elm.DocumentType === "10-Q") {
+        factor = 0.25;
       }
-      operating_Margin_sum = operating_Margin_sum + Math.ceil( elm.OperatingIncome / elm.Revenues * factor * 100)/100;
+      operating_Margin_sum =
+        operating_Margin_sum +
+        Math.ceil((elm.OperatingIncome / elm.Revenues) * factor * 100) / 100;
       counter_opm++;
     }
-    if (elm.WorkingCapital > 0){
+    if (elm.WorkingCapital > 0) {
       factor = 1;
-      if (elm.DocumentType === "10-Q"){
-        factor = 0.25
+      if (elm.DocumentType === "10-Q") {
+        factor = 0.25;
       }
-      workingCapital_sum = workingCapital_sum + elm.WorkingCapital + Math.ceil( elm.WorkingCapital * factor * 100)/100;;
+      workingCapital_sum =
+        workingCapital_sum +
+        elm.WorkingCapital +
+        Math.ceil(elm.WorkingCapital * factor * 100) / 100;
       counter_wc++;
     }
   });
-  if (counter_opm>0){
-    operating_Margin_avrg = Math.round(operating_Margin_sum / counter_opm * 100) / 100;
+  if (counter_opm > 0) {
+    operating_Margin_avrg =
+      Math.round((operating_Margin_sum / counter_opm) * 100) / 100;
   }
-  if (counter_wc>0){
-    workingCapital_avrg = Math.round(workingCapital_sum / counter_wc * 100) / 100;
+  if (counter_wc > 0) {
+    workingCapital_avrg =
+      Math.round((workingCapital_sum / counter_wc) * 100) / 100;
   }
   //enrich data object with the averages
-return {operating_Margin_avrg, workingCapital_avrg};
-  
-  
+  return { operating_Margin_avrg, workingCapital_avrg };
 }
-
 
 function log(msg) {
   if (config.log) {
