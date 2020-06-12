@@ -7,7 +7,14 @@
   "description": "extract dcf values from known API's",
   "main": "index.js",
   "scripts": {
-    "start": "set DEBUG=app & nodemon index.js"
+    "start": "set DEBUG=app & nodemon index.js",
+    "test": "cross-env NODE_ENV=test jest --testTimeout=10000"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ]
   },
   "author": "",
   "license": "ISC",
@@ -21,7 +28,8 @@
     "parse-xbrl-10k": "git+https://github.com/doronwix/parse-xbrl-10k.git",
     "request": "^2.88.2",
     "request-promise": "^4.2.5",
-    "xml2js": "^0.4.23"
+    "xml2js": "^0.4.23",
+    "yahoo-stock-prices": "^1.0.1"
   },
   "devDependencies": {
     "jest": "^25.4.0",

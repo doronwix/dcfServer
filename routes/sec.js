@@ -115,7 +115,7 @@ router.get("/:symbolId/:maxYear?", function (req, res) {
           extrapolations.revenuesExtrapolated = revenuesExtrapolated;
         }
 
-        let all = extrapolate.extrapolateAll(financialData);
+        //let all = extrapolate.extrapolateAll(financialData);
 
         let netIncomeExtrapolated = extrapolate.extrapolate(
           financialData,
