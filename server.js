@@ -67,6 +67,10 @@ app.use("/api/sec", sec);
 app.use("/api/rate", yahooApi);
 //app.use("/api/test", test);
 
+app.use((error, req, res, next) => {
+  return res.status(500).json({ error: error.toString() });
+});
+
 // START THE SERVER
 // =============================================================================
 app.listen(port);

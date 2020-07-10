@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const rp = require("request-promise");
+const axios = require("axios");
 const htmlExtractor = require("html-extract-js");
 const parseXbrl = require("parse-xbrl-10k");
 const utils = require("./utils");
@@ -8,141 +8,133 @@ const utils = require("./utils");
 const extrapolate = require("./calculate/extrapolate");
 const repository = require("./repository/repositoryFactory");
 const getDirName = require("path").dirname;
-const config = { log: false, fs: true };
+const config = { log: true, fs: true };
 
 repository.registerRepositry("fs");
 
-router.get("/:symbolId/:maxYear?", function (req, res) {
-  let now = new Date(),
-    symbolId = req.params.symbolId,
-    max_year_param = req.params.maxYear
-      ? req.params.maxYear
-      : now.getFullYear(),
-    max_year =
-      parseInt(max_year_param) < now.getFullYear()
-        ? max_year_param + 1
-        : now.getFullYear() + 1,
-    min_year = max_year - 10,
+router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
+  let _currentYear = new Date().getFullYear(),
+    _symbolId = req.params.symbolId
+      ? req.params.symbolId
+      : res.send("please send symbol"),
+    _maxYear = req.params.maxYear ? parseInt(req.params.maxYear) : _currentYear,
+    _numOfYears = req.params.numOfYears ? parseInt(req.params.numOfYears) : 10,
+    _docType = req.params.docType ? req.params.docType : 10,
+    max_year = _maxYear < _currentYear ? _maxYear + 1 : _currentYear,
+    min_year = max_year - _numOfYears,
     financialData = [],
-    promise_arr = [],
     currentYear = max_year,
-    month = 12,
     search_params = "",
-    monthCount = 18;
+    mapYearToRegEx = () => {
+      let regexToYear = {};
+      for (c_year = min_year; c_year < max_year + 1; c_year++) {
+        let year_dec = (c_year + "").substring(2, 4);
+        regexToYear[c_year] = new RegExp(
+          "([0][\\d]+)-" + year_dec + "-([\\d]+)",
+          "g"
+        );
+      }
+      return utils.objToStrMap(regexToYear);
+    },
+    accessNumberMapRegex = mapYearToRegEx();
 
-  //url validation:
-  if (!symbolId) {
-    res.send("please send symbol");
-    return;
-  }
-
-  let getPromise = (year, type, search_params) => {
-    return new Promise(function (resolve, reject) {
-      get_sec_document(year, symbolId, search_params, type, resolve, reject);
-    });
-  };
-  //prepare regex for scrapping access number
-  let regexToYear = {};
-  for (c_year = min_year; c_year < max_year; c_year++) {
-    let year_dec = (c_year + "").substring(2, 4);
-    regexToYear[c_year] = new RegExp(
-      "([0][\\d]+)-" + year_dec + "-([\\d]+)",
-      "g"
-    );
-  }
-  let accessNumberMapRegex = utils.objToStrMap(regexToYear);
   //get 10-K for 10 years
-  while (currentYear >= min_year && currentYear <= max_year) {
-    search_params =
-      "&Find=Search&owner=exclude&action=getcompany&type=10-K&owner=exclude&count=1";
-    promise_arr.push(getPromise(currentYear, "10-K", search_params));
 
-    currentYear--;
-  }
+  function flow() {
+    let promise_arr = [],
+      month = 12,
+      monthCount = 18,
+      tenQlastYear = max_year - 1;
+    wrap = (year, type, search_params) => {
+      return new Promise(function (resolve, reject) {
+        get_sec_document(year, _symbolId, search_params, type, resolve, reject);
+      });
+    };
+    while (currentYear >= min_year && currentYear <= max_year) {
+      search_params =
+        "&Find=Search&owner=exclude&action=getcompany&type=10-K&owner=exclude&count=1";
+      promise_arr.push(wrap(currentYear, "10-K", search_params));
 
-  //get 10-Q for the last year
-  let tenQlastYear = max_year - 1;
-  while (month >= 1 && monthCount >= 1) {
-    search_params =
-      "&Find=Search&owner=exclude&action=getcompany&type=10-Q&owner=exclude&count=1&dateb=" +
-      tenQlastYear +
-      (month < 10 ? "0" + month : month) +
-      "31" +
-      "&datea=" +
-      tenQlastYear +
-      (month < 10 ? "0" + month : month) +
-      "01";
-    promise_arr.push(getPromise(tenQlastYear, "10-Q", search_params));
-    month--;
-    if (month == 0) {
-      month = 12;
-      tenQlastYear = tenQlastYear - 1;
+      currentYear--;
     }
-    monthCount--;
+    //get 10-Q for the last year
+
+    while (month >= 1 && monthCount >= 1) {
+      search_params =
+        "&Find=Search&owner=exclude&action=getcompany&type=10-Q&owner=exclude&count=1&dateb=" +
+        tenQlastYear +
+        (month < 10 ? "0" + month : month) +
+        "31" +
+        "&datea=" +
+        tenQlastYear +
+        (month < 10 ? "0" + month : month) +
+        "01";
+      promise_arr.push(wrap(tenQlastYear, "10-Q", search_params));
+      month--;
+      if (month == 0) {
+        month = 12;
+        tenQlastYear = tenQlastYear - 1;
+      }
+      monthCount--;
+    }
+    return promise_arr;
   }
 
   //after all is fetched buildjson to return
-  Promise.all(promise_arr)
+  Promise.allSettled(flow())
     .then(function (responses) {
       for (let response of responses) {
         if (
-          response.parsed_10k &&
-          Object.keys(response.parsed_10k).length !== 0
+          response.status == "fulfilled" &&
+          response.value &&
+          response.value.data &&
+          Object.keys(response.value.data).length !== 0
         ) {
-          let json_result;
-          if (response.parsed_10k.value) {
-            json_result = response.parsed_10k.value();
-          } else {
-            json_result = response.parsed_10k;
-          }
-          financialData.push(json_result);
-          if (response.fs_url) {
-            let split_url = response.fs_url.split("/");
-            let fileName = split_url[split_url.length - 1];
-            fileName = fileName.replace(".xml", ".json");
-            repository.create(fileName, json_result);
+          financialData.push(response.value.data);
+          if (response.value.url) {
+            let splitted = response.value.url.split("/");
+            let fileName = splitted[splitted.length - 1];
+            repository.create(
+              fileName.replace(".xml", ".json"),
+              response.value.data
+            );
           }
         }
       }
-      return new Promise(function (resolve, reject) {
-        let extrapolations = {};
-        //extrapolate a dcf relation
-        let revenuesExtrapolated = extrapolate.extrapolate(
-          financialData,
-          "Revenues"
-        );
-        if (revenuesExtrapolated.length > 0) {
-          extrapolations.revenuesExtrapolated = revenuesExtrapolated;
-        }
 
-        //let all = extrapolate.extrapolateAll(financialData);
+      let extrapolations = {};
+      //extrapolate a dcf relation
+      let revenuesExtrapolated = extrapolate.extrapolate(
+        financialData,
+        "Revenues"
+      );
+      if (revenuesExtrapolated.length > 0) {
+        extrapolations.revenuesExtrapolated = revenuesExtrapolated;
+      }
 
-        let netIncomeExtrapolated = extrapolate.extrapolate(
-          financialData,
-          "NetIncomeLoss"
-        );
+      //let all = extrapolate.extrapolateAll(financialData);
 
-        if (netIncomeExtrapolated.length > 0) {
-          extrapolations.netIncomeExtrapolated = netIncomeExtrapolated;
-        }
+      let netIncomeExtrapolated = extrapolate.extrapolate(
+        financialData,
+        "NetIncomeLoss"
+      );
 
-        let liabilities = extrapolate.extrapolate(financialData, "Liabilities");
+      if (netIncomeExtrapolated.length > 0) {
+        extrapolations.netIncomeExtrapolated = netIncomeExtrapolated;
+      }
 
-        if (liabilities.length > 0) {
-          extrapolations.liabilities = liabilities;
-        }
+      let liabilities = extrapolate.extrapolate(financialData, "Liabilities");
 
-        let averages = addCalculatedAverages(financialData);
+      if (liabilities.length > 0) {
+        extrapolations.liabilities = liabilities;
+      }
 
-        resolve({ financialData, extrapolations, averages });
-      });
-    })
-    .then(function (response) {
-      //send final result to client
-      res.send(response);
+      let averages = addCalculatedAverages(financialData);
+
+      res.send({ financialData, extrapolations, averages });
     })
     .catch((err) => {
-      log(err);
+      return res.status(400).json({ err: err.toString() });
     });
 
   //scrap sec web site and extract url to document
@@ -158,15 +150,19 @@ router.get("/:symbolId/:maxYear?", function (req, res) {
 
     let accessNumber = accessNumberMapRegex
       .get(year.toString())
-      .exec(extractedAcccess)[0]
-      .replace(/-/g, "");
+      .exec(extractedAcccess);
 
-    return (
-      "https://www.sec.gov/Archives/edgar/data/" +
-      currentCik +
-      "/" +
-      accessNumber
-    );
+    if (accessNumber) {
+      accessNumber = accessNumber[0].replace(/-/g, "");
+      return (
+        "https://www.sec.gov/Archives/edgar/data/" +
+        currentCik +
+        "/" +
+        accessNumber
+      );
+    } else {
+      return "";
+    }
   }
 
   //get xml from sec and scrap its data
@@ -178,65 +174,57 @@ router.get("/:symbolId/:maxYear?", function (req, res) {
     resolve,
     reject
   ) {
-    let fs_url;
-
-    rp(
-      "http://www.sec.gov/cgi-bin/browse-edgar?CIK=" + symbolId + search_params
-    )
-      .then((htmlString) => {
-        let url = get_xk_url(htmlString, year, type);
-        return url;
+    axios
+      .get(
+        "http://www.sec.gov/cgi-bin/browse-edgar?CIK=" +
+          symbolId +
+          search_params
+      )
+      .then((response) => {
+        let url = get_xk_url(response.data, year, type);
+        if (url) {
+          return axios.get(url);
+        } else {
+          throw new Error("no available document" + year + "," + type);
+        }
       })
-      .then((url) => rp(url))
-      .then((htmlString) => {
-        let extractor = htmlExtractor.load(htmlString, { charset: "UTF-8" });
+      .then((response) => {
+        let extractor = htmlExtractor.load(response.data, { charset: "UTF-8" });
         let html = extractor.$("#main-content").html();
         let regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
+
         let tenKurl = regex.exec(html);
-        if (!tenKurl) {
-          log("no document in this year:" + year);
-          resolve({});
-        }
-        let url = "https://www.sec.gov" + tenKurl[0];
-        log(url);
-        return url;
-      })
-      .then((url) => {
-        fs_url = url;
-        //check if file exsits on files system
-        let split_url = fs_url.split("/");
-        let fileName = split_url[split_url.length - 1];
-        fileName = fileName.replace(".xml", ".json");
-        return { fileName, url };
-      })
-      .then((result) => {
-        return repository.isExists("./fs/", result.fileName);
-      })
-      .then((file) => {
-        if (file.size > 0) {
-          var contents = repository.get(file.name);
-          if (contents) {
-            resolve({ parsed_10k: JSON.parse(contents) });
-          } else {
-            return rp(fs_url);
-          }
+        if (tenKurl) {
+          let url = "https://www.sec.gov" + tenKurl[0];
+          //check if file exsits on files system
+          let split_url = url.split("/");
+          let fileName = split_url[split_url.length - 1];
+          fileName = fileName.replace(".xml", ".json");
+
+          return repository
+            .isExists("./fs/", fileName)
+            .then((file) => {
+              return repository.get(file.name);
+            })
+            .catch(() => {
+              return axios.get(url);
+            });
         } else {
-          return rp(fs_url);
+          throw new Error("no available document" + year + "," + type);
         }
       })
-      .then((htmlString) => {
-        if (htmlString) {
-          let parsed_10k = parseXbrl.parseStr(htmlString);
-          if (parsed_10k) {
-            resolve({ fs_url, parsed_10k });
-          }
-        } else {
-          resolve({});
-        }
+      .then((response) => {
+        parseXbrl
+          .parseStr(response.data)
+          .then((data) => {
+            let url = response.config.url;
+            resolve({ url, data });
+          })
+          .catch((err) => reject(err));
       })
       .catch((err) => {
-        log(err + " year:" + year);
-        resolve({});
+        log(err + "," + year + "," + type);
+        reject(err);
       });
   }
 });
