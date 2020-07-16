@@ -139,18 +139,16 @@ router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
 
   //scrap sec web site and extract url to document
   function get_xk_url(htmlString, year, type) {
-    let extractor = htmlExtractor.load(htmlString, { charset: "UTF-8" });
-    let extractedText = extractor.$(".companyName").text();
-    let regex = /[0]\d+/g;
-    let currentCik = parseFloat(regex.exec(extractedText)[0]);
-
-    let extractedAcccess = extractor.$(
-      "tr:contains(" + type + "):not(:contains(" + type + "/A))"
-    );
-
-    let accessNumber = accessNumberMapRegex
-      .get(year.toString())
-      .exec(extractedAcccess);
+    let extractor = htmlExtractor.load(htmlString, { charset: "UTF-8" }),
+      extractedText = extractor.$(".companyName").text(),
+      regex = /[0]\d+/g,
+      currentCik = parseFloat(regex.exec(extractedText)[0]),
+      extractedAccess = extractor.$(
+        "tr:contains(" + type + "):not(:contains(" + type + "/A))"
+      ),
+      accessNumber = accessNumberMapRegex
+        .get(year.toString())
+        .exec(extractedAccess);
 
     if (accessNumber) {
       accessNumber = accessNumber[0].replace(/-/g, "");
@@ -189,13 +187,12 @@ router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
         }
       })
       .then((response) => {
-        let extractor = htmlExtractor.load(response.data, { charset: "UTF-8" });
-        let html = extractor.$("#main-content").html();
-        let regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
-
-        let tenKurl = regex.exec(html);
-        if (tenKurl) {
-          let url = "https://www.sec.gov" + tenKurl[0];
+        let extractor = htmlExtractor.load(response.data, { charset: "UTF-8" }),
+          html = extractor.$("#main-content").html(),
+          regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g,
+          securl = regex.exec(html);
+        if (securl) {
+          let url = "https://www.sec.gov" + securl[0];
           //check if file exsits on files system
           let split_url = url.split("/");
           let fileName = split_url[split_url.length - 1];
@@ -204,7 +201,10 @@ router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
           return repository
             .isExists("./fs/", fileName)
             .then((file) => {
-              return repository.get(file.name);
+              return new Promise((resolve, reject) => {
+                let json = JSON.parse(repository.get(file.name));
+                resolve({ url, json });
+              });
             })
             .catch(() => {
               return axios.get(url);
@@ -214,13 +214,18 @@ router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
         }
       })
       .then((response) => {
-        parseXbrl
-          .parseStr(response.data)
-          .then((data) => {
-            let url = response.config.url;
-            resolve({ url, data });
-          })
-          .catch((err) => reject(err));
+        if (typeof response.data !== "undefined") {
+          parseXbrl
+            .parseStr(response.data)
+            .then((data) => {
+              let url = response.config.url;
+              resolve({ url, data });
+            })
+            .catch((err) => reject(err));
+        } else {
+          let data = response.json;
+          resolve({ data });
+        }
       })
       .catch((err) => {
         log(err + "," + year + "," + type);
