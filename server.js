@@ -3,13 +3,14 @@ const fs = require("fs");
 const HtmlExtractor = require("html-extract-js");
 const https = require("https");
 const request = require("request");
-const rp = require("request-promise");
-const parseXbrl = require("parse-xbrl-10k");
+
+//const parseXbrl = require("parse-xbrl-10k");
 const yahoo = require("./routes/yahoo");
 const yahooApi = require("./routes/yahooApi");
 const sec = require("./routes/sec");
 //const test = require("./routes/spawnpython");
 const assets = require("./routes/assets");
+const listOfStocks = require("./routes/listOfStocks");
 
 // BASE SETUP
 // =============================================================================
@@ -65,6 +66,7 @@ app.use("/api/nasdaq", assets);
 app.use("/api/yahoo", yahoo);
 app.use("/api/sec", sec);
 app.use("/api/rate", yahooApi);
+app.use("/api/stocklist", listOfStocks);
 //app.use("/api/test", test);
 
 app.use((error, req, res, next) => {

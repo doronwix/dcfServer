@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const rp = require("request-promise");
 
 const yahooStockPrices = require("yahoo-stock-prices");
 

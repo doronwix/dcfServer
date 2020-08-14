@@ -1,15 +1,23 @@
 const express = require("express");
+const path = require("path");
 const router = express.Router();
 const axios = require("axios");
 const htmlExtractor = require("html-extract-js");
 const parseXbrl = require("parse-xbrl-10k");
 const utils = require("./utils");
 
+const {
+  Worker,
+  MessageChannel,
+  MessagePort,
+  isMainThread,
+  parentPort,
+} = require("worker_threads");
+
 const extrapolate = require("./calculate/extrapolate");
 const repository = require("./repository/repositoryFactory");
 const getDirName = require("path").dirname;
-const config = { log: true, fs: true };
-
+const config = { log: true, fs: true, setWorker: false };
 repository.registerRepositry("fs");
 
 router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
@@ -104,10 +112,15 @@ router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
 
       let extrapolations = {};
       //extrapolate a dcf relation
+      if (financialData.length === 0) {
+        res.send({ financialData, extrapolations, averages: {} });
+        return;
+      }
       let revenuesExtrapolated = extrapolate.extrapolate(
         financialData,
         "Revenues"
       );
+
       if (revenuesExtrapolated.length > 0) {
         extrapolations.revenuesExtrapolated = revenuesExtrapolated;
       }
@@ -189,42 +202,52 @@ router.get("/:symbolId/:maxYear?/:numOfYears?/:docType?", function (req, res) {
       .then((response) => {
         let extractor = htmlExtractor.load(response.data, { charset: "UTF-8" }),
           html = extractor.$("#main-content").html(),
-          regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g,
-          securl = regex.exec(html);
-        if (securl) {
-          let url = "https://www.sec.gov" + securl[0];
-          //check if file exsits on files system
-          let split_url = url.split("/");
-          let fileName = split_url[split_url.length - 1];
-          fileName = fileName.replace(".xml", ".json");
-
-          return repository
-            .isExists("./fs/", fileName)
-            .then((file) => {
-              return new Promise((resolve, reject) => {
-                let json = JSON.parse(repository.get(file.name));
-                resolve({ url, json });
-              });
-            })
-            .catch(() => {
-              return axios.get(url);
-            });
+          regex = /\/Archives\/edgar\/data\/[0-9]+\/[0-9]+\/[\w]+-[0-9]+\.xml/g;
+        return regex.exec(html);
+      })
+      .then((securl) => {
+        let url = "https://www.sec.gov" + securl[0];
+        //check if file exsits on files system
+        let split_url = url.split("/");
+        let fileName = split_url[split_url.length - 1];
+        fileName = fileName.replace(".xml", ".json");
+        return repository.isExists("./fs/", fileName, url);
+      })
+      .then((result) => {
+        if (result && result.result.name) {
+          let json = JSON.parse(repository.get(result.result.name));
+          return { url: result.extraData, json };
         } else {
-          throw new Error("no available document" + year + "," + type);
+          return axios.get(result.extraData);
         }
       })
       .then((response) => {
-        if (typeof response.data !== "undefined") {
-          parseXbrl
-            .parseStr(response.data)
-            .then((data) => {
-              let url = response.config.url;
-              resolve({ url, data });
-            })
-            .catch((err) => reject(err));
+        if (response && response.json) {
+          return resolve({ url: response.url, data: response.json });
+        }
+        let dataRequest = { data: response.data, url: response.config.url };
+        if (config.setWorker) {
+          const worker = new Worker(
+            path.resolve(__dirname, "./parseXbrlworker.js"),
+            {
+              workerData: dataRequest,
+            }
+          );
+
+          worker.on("message", (message) => {
+            return resolve(message);
+          });
+          worker.on("error", (message) => {
+            console.log("Worker exit: ", message);
+          });
+          worker.on("exit", (code) => {
+            if (code !== 0)
+              return reject(new Error(`Worker stopped with exit code ${code}`));
+          });
         } else {
-          let data = response.json;
-          resolve({ data });
+          parseXbrl.parseStr(dataRequest.data).then((data) => {
+            return resolve({ data, url: dataRequest.url });
+          });
         }
       })
       .catch((err) => {
